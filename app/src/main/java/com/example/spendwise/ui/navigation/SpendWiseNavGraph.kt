@@ -22,6 +22,38 @@ fun SpendWiseNavGraph(
     viewModel: SpendWiseViewModel,
     navController: NavHostController = rememberNavController()
 ) {
+    val currentUserId by viewModel.currentUserId.collectAsState()
+    val userSettings by viewModel.userSettings.collectAsState()
+    val isAppLocked by viewModel.isAppLocked.collectAsState()
+
+    val isLoggedIn = !currentUserId.isNullOrBlank()
+    val isAppLockEnabled = userSettings?.isAppLockEnabled ?: false
+
+    // 1. Not logged in -> Show Authentication (Login / Sign Up)
+    if (!isLoggedIn) {
+        com.example.spendwise.ui.screens.auth.AuthScreen(
+            viewModel = viewModel,
+            onAuthSuccess = {
+                // Auth state updates currentUserId which triggers recomposition directly to main Scaffold
+            }
+        )
+        return
+    }
+
+    // 2. Logged in and App Lock is active -> Show PIN / Biometric Lock Screen
+    if (isAppLockEnabled && isAppLocked) {
+        com.example.spendwise.ui.screens.auth.AppLockScreen(
+            viewModel = viewModel,
+            onUnlocked = {
+                // PIN or Biometrics verified, main dashboard unlocks smoothly
+            },
+            onLogout = {
+                viewModel.logout()
+            }
+        )
+        return
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -29,8 +61,8 @@ fun SpendWiseNavGraph(
 
     Scaffold(
         bottomBar = {
-            // Hide bottom bar on Add Transaction screen as in reference UI
-            if (currentRoute != Screen.AddTransaction.route) {
+            // Hide bottom bar on Add Transaction and Screenshot Review screens
+            if (currentRoute != Screen.AddTransaction.route && currentRoute != Screen.ScreenshotReview.route) {
                 SpendWiseBottomBar(
                     currentRoute = currentRoute,
                     onNavigate = { targetRoute ->
@@ -62,7 +94,10 @@ fun SpendWiseNavGraph(
                         editingTransaction = tx
                         navController.navigate(Screen.AddTransaction.route)
                     },
-                    onBudgetCardClicked = { navController.navigate(Screen.Budget.route) }
+                    onBudgetCardClicked = { navController.navigate(Screen.Budget.route) },
+                    onNavigateToScreenshotReview = {
+                        navController.navigate(Screen.ScreenshotReview.route)
+                    }
                 )
             }
 
@@ -83,6 +118,21 @@ fun SpendWiseNavGraph(
                     onNavigateBack = {
                         editingTransaction = null
                         navController.popBackStack()
+                    },
+                    onNavigateToScreenshotReview = {
+                        navController.navigate(Screen.ScreenshotReview.route)
+                    }
+                )
+            }
+
+            composable(Screen.ScreenshotReview.route) {
+                com.example.spendwise.ui.screens.ocr.ScreenshotReviewScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onImportSuccess = { count ->
+                        navController.popBackStack()
                     }
                 )
             }
@@ -96,7 +146,14 @@ fun SpendWiseNavGraph(
             }
 
             composable(Screen.Settings.route) {
-                SettingsScreen(viewModel = viewModel)
+                SettingsScreen(
+                    viewModel = viewModel,
+                    onLogout = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
             }
         }
     }

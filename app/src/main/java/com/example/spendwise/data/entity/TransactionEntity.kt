@@ -1,14 +1,22 @@
 package com.example.spendwise.data.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.spendwise.model.PaymentMethod
 import com.example.spendwise.model.TransactionType
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [
+        Index(value = ["userId"]),
+        Index(value = ["userId", "date"])
+    ]
+)
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val userId: String = "",         // ID of the user who owns this transaction
     val type: TransactionType,
     val amount: Double,
     val category: String,

@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SpendWise"
+rootProject.name = "SpendWise-AI"
 include(":app")

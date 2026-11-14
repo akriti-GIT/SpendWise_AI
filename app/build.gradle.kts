@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+layout.buildDirectory.set(file("C:/Users/AKRIT/.gradle_builds/SpendWise-AI/app"))
+
+
 android {
     namespace = "com.example.spendwise"
     compileSdk {
@@ -56,6 +59,15 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.devanagari)
+    implementation(libs.androidx.biometric)
+
+    // Cloud Vision AI (Google Gemini API)
+    implementation(libs.google.generativeai)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

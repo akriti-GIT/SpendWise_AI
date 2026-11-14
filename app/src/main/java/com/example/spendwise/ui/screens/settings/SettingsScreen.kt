@@ -31,6 +31,7 @@ import com.example.spendwise.viewmodel.SpendWiseViewModel
 @Composable
 fun SettingsScreen(
     viewModel: SpendWiseViewModel,
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -38,12 +39,31 @@ fun SettingsScreen(
 
     var showClearDataConfirm by remember { mutableStateOf(false) }
     var showResetSampleConfirm by remember { mutableStateOf(false) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showChangePinDialog by remember { mutableStateOf(false) }
+    var oldPinInput by remember { mutableStateOf("") }
+    var newPinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+
     var showProfileDialog by remember { mutableStateOf(false) }
     var editName by remember { mutableStateOf("") }
     var editId by remember { mutableStateOf("") }
 
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var apiKeyInput by remember { mutableStateOf("") }
+
+    val isCloudAi by viewModel.isCloudAiEnabled.collectAsState()
+    val geminiKey by viewModel.geminiApiKey.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.initAiConfig(context)
+    }
+
     val studentName = userSettings?.studentName ?: "Maya Chen"
     val studentId = userSettings?.collegeId ?: "MCA-2026-087"
+    val userEmail = userSettings?.email ?: "maya.chen@campus.edu"
+    val isAppLockEnabled = userSettings?.isAppLockEnabled ?: true
+    val isBiometricEnabled = userSettings?.isBiometricEnabled ?: true
     val isDark = userSettings?.darkMode ?: false
 
     LazyColumn(
@@ -132,6 +152,203 @@ fun SettingsScreen(
                         tint = TextMuted
                     )
                 }
+            }
+        }
+
+        // Section: Security & Authentication
+        item {
+            SectionHeader("ACCOUNT & SECURITY")
+        }
+
+        item {
+            CardContainer {
+                SettingRow(
+                    icon = Icons.Outlined.Email,
+                    title = "Account Email",
+                    detail = userEmail
+                )
+
+                HorizontalDivider(color = CardBorder, thickness = 0.8.dp)
+
+                // App Lock Toggle (Require PIN every time app opens)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.Lock,
+                            contentDescription = null,
+                            tint = DarkPine,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "App Lock on Launch",
+                                fontFamily = SansFamily,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Require 4-digit PIN every time app opens",
+                                fontFamily = SansFamily,
+                                fontSize = 11.5.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isAppLockEnabled,
+                        onCheckedChange = { viewModel.setAppLockEnabled(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = CardLight, checkedTrackColor = DarkPine)
+                    )
+                }
+
+                HorizontalDivider(color = CardBorder, thickness = 0.8.dp)
+
+                // Biometric Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.Fingerprint,
+                            contentDescription = null,
+                            tint = DarkPine,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Biometric Unlock",
+                                fontFamily = SansFamily,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Fingerprint / Face recognition prompt",
+                                fontFamily = SansFamily,
+                                fontSize = 11.5.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isBiometricEnabled,
+                        onCheckedChange = { viewModel.setBiometricEnabled(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = CardLight, checkedTrackColor = DarkPine)
+                    )
+                }
+
+                HorizontalDivider(color = CardBorder, thickness = 0.8.dp)
+
+                // Change PIN
+                SettingActionRow(
+                    icon = Icons.Outlined.Pin,
+                    title = "Change Security PIN",
+                    onClick = {
+                        oldPinInput = ""
+                        newPinInput = ""
+                        pinError = null
+                        showChangePinDialog = true
+                    }
+                )
+
+                HorizontalDivider(color = CardBorder, thickness = 0.8.dp)
+
+                // Log out
+                SettingActionRow(
+                    icon = Icons.Outlined.Logout,
+                    title = "Log Out of Account",
+                    textColor = Terracotta,
+                    onClick = { showLogoutConfirm = true }
+                )
+            }
+        }
+
+        // Section: AI & Smart Receipt Detection
+        item {
+            SectionHeader("AI & SMART DETECTION")
+        }
+
+        item {
+            CardContainer {
+                // Cloud AI Switch
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = DarkPine,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Google Gemini Vision AI",
+                                fontFamily = SansFamily,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isCloudAi) "Active (multimodal cloud vision)" else "Disabled (local OCR only)",
+                                fontFamily = SansFamily,
+                                fontSize = 11.sp,
+                                color = if (isCloudAi) SageGreen else TextMuted
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isCloudAi,
+                        onCheckedChange = { viewModel.setCloudAiEnabled(context, it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = CardLight, checkedTrackColor = DarkPine)
+                    )
+                }
+
+                HorizontalDivider(color = CardBorder, thickness = 0.8.dp)
+
+                // Gemini API Key
+                SettingActionRow(
+                    icon = Icons.Outlined.Key,
+                    title = "Gemini API Key",
+                    detail = if (geminiKey.isNotBlank()) "Configured (••••${geminiKey.takeLast(4)})" else "Default / Custom Key",
+                    onClick = {
+                        apiKeyInput = geminiKey
+                        showApiKeyDialog = true
+                    }
+                )
+
+                HorizontalDivider(color = CardBorder, thickness = 0.8.dp)
+
+                // Local Fallback Status
+                SettingRow(
+                    icon = Icons.Outlined.CloudDone,
+                    title = "Offline Local Fallback",
+                    detail = "Active (ML Kit Devanagari)"
+                )
             }
         }
 
@@ -296,13 +513,13 @@ fun SettingsScreen(
     // Reset Confirmation
     if (showResetSampleConfirm) {
         ConfirmationDialog(
-            title = "Reset to Sample Data?",
-            message = "This will restore initial student income and expense samples for testing and evaluation.",
-            confirmText = "Reset",
+            title = "Load Sample Data?",
+            message = "This will load sample income and expense transactions into your account for testing. Other accounts are not affected.",
+            confirmText = "Load Samples",
             onConfirm = {
                 showResetSampleConfirm = false
                 viewModel.resetToSampleData {
-                    Toast.makeText(context, "Sample data restored!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Sample data added to your account!", Toast.LENGTH_SHORT).show()
                 }
             },
             onDismiss = { showResetSampleConfirm = false }
@@ -312,16 +529,174 @@ fun SettingsScreen(
     // Clear Confirmation
     if (showClearDataConfirm) {
         ConfirmationDialog(
-            title = "Clear All Data?",
-            message = "This will permanently remove all transactions and budgets. Are you sure?",
-            confirmText = "Clear All",
+            title = "Clear Your Data?",
+            message = "This will permanently remove your transactions and budgets. Other user accounts will not be affected. Are you sure?",
+            confirmText = "Clear My Data",
             onConfirm = {
                 showClearDataConfirm = false
                 viewModel.clearAllData {
-                    Toast.makeText(context, "All data cleared.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Your data has been cleared.", Toast.LENGTH_SHORT).show()
                 }
             },
             onDismiss = { showClearDataConfirm = false }
+        )
+    }
+
+    // Change PIN Dialog
+    if (showChangePinDialog) {
+        AlertDialog(
+            onDismissRequest = { showChangePinDialog = false },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = {
+                Text("Change Security PIN", fontFamily = SerifFamily, fontSize = 20.sp)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Enter your current 4-digit PIN and select a new one.",
+                        fontFamily = SansFamily,
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    OutlinedTextField(
+                        value = oldPinInput,
+                        onValueChange = {
+                            if (it.length <= 4 && it.all { ch -> ch.isDigit() }) {
+                                oldPinInput = it
+                                pinError = null
+                            }
+                        },
+                        label = { Text("Current PIN") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = newPinInput,
+                        onValueChange = {
+                            if (it.length <= 4 && it.all { ch -> ch.isDigit() }) {
+                                newPinInput = it
+                                pinError = null
+                            }
+                        },
+                        label = { Text("New 4-digit PIN") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                        )
+                    )
+
+                    pinError?.let { err ->
+                        Text(
+                            text = err,
+                            fontFamily = SansFamily,
+                            fontSize = 11.5.sp,
+                            color = Terracotta
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.changePin(
+                            oldPin = oldPinInput,
+                            newPin = newPinInput,
+                            onSuccess = {
+                                showChangePinDialog = false
+                                Toast.makeText(context, "PIN updated successfully!", Toast.LENGTH_SHORT).show()
+                            },
+                            onError = { err ->
+                                pinError = err
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DarkPine)
+                ) {
+                    Text("Update PIN", fontFamily = SansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showChangePinDialog = false }) {
+                    Text("Cancel", fontFamily = SansFamily, color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // Logout Confirmation
+    if (showLogoutConfirm) {
+        ConfirmationDialog(
+            title = "Log Out?",
+            message = "You will be returned to the login screen. You will need your password or PIN to sign back in.",
+            confirmText = "Log Out",
+            onConfirm = {
+                showLogoutConfirm = false
+                viewModel.logout(onComplete = onLogout)
+            },
+            onDismiss = { showLogoutConfirm = false }
+        )
+    }
+
+    // Gemini API Key Dialog
+    if (showApiKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showApiKeyDialog = false },
+            title = {
+                Text(
+                    text = "Gemini Vision API Key",
+                    fontFamily = SerifFamily,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "SpendWise-AI uses Google Gemini 1.5 Flash Vision to parse complex receipts, split bills, and bus fares with 100% accuracy. Get a free API key at aistudio.google.com",
+                        fontFamily = SansFamily,
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        label = { Text("Gemini API Key") },
+                        placeholder = { Text("AIzaSy...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Leave empty to use built-in / offline mode.",
+                        fontFamily = SansFamily,
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.setGeminiApiKey(context, apiKeyInput.trim())
+                        showApiKeyDialog = false
+                        Toast.makeText(context, "API Key saved successfully!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DarkPine)
+                ) {
+                    Text("Save Key", fontFamily = SansFamily)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showApiKeyDialog = false }) {
+                    Text("Cancel", fontFamily = SansFamily, color = TextSecondary)
+                }
+            }
         )
     }
 }
@@ -383,6 +758,7 @@ private fun SettingRow(icon: ImageVector, title: String, detail: String) {
 private fun SettingActionRow(
     icon: ImageVector,
     title: String,
+    detail: String? = null,
     textColor: Color = Color.Unspecified,
     onClick: () -> Unit
 ) {
@@ -394,7 +770,10 @@ private fun SettingActionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(icon, contentDescription = null, tint = if (textColor != Color.Unspecified) textColor else DarkPine, modifier = Modifier.size(22.dp))
             Spacer(modifier = Modifier.width(12.dp))
             Text(
@@ -404,6 +783,17 @@ private fun SettingActionRow(
                 color = if (textColor != Color.Unspecified) textColor else MaterialTheme.colorScheme.onSurface
             )
         }
-        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = TextMuted)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!detail.isNullOrBlank()) {
+                Text(
+                    text = detail,
+                    fontFamily = SansFamily,
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = TextMuted)
+        }
     }
 }

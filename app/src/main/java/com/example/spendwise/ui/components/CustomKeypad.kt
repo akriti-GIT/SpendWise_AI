@@ -31,29 +31,29 @@ fun CustomKeypad(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         keys.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 row.forEach { key ->
                     val isDel = key == "del"
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(if (isDel) Color.Transparent else MaterialTheme.colorScheme.surface)
-                            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+                            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
                             .clickable { onKeyPressed(key) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (isDel) "⌫" else key,
                             fontFamily = if (isDel) SansFamily else SerifFamily,
-                            fontSize = if (isDel) 18.sp else 24.sp,
+                            fontSize = if (isDel) 18.sp else 22.sp,
                             fontWeight = if (isDel) FontWeight.Bold else FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onSurface
                         )

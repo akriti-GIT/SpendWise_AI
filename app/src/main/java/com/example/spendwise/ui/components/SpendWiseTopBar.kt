@@ -47,16 +47,8 @@ fun SpendWiseTopBar(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Student Greeting
+        // Student Name
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "GOOD MORNING",
-                fontFamily = SansFamily,
-                fontSize = 9.5.sp,
-                letterSpacing = 1.8.sp,
-                color = Terracotta,
-                fontWeight = FontWeight.SemiBold
-            )
             Text(
                 text = studentName,
                 fontFamily = SerifFamily,

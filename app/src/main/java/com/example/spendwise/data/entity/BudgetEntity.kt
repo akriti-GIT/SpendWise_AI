@@ -1,14 +1,21 @@
 package com.example.spendwise.data.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "budgets")
+@Entity(
+    tableName = "budgets",
+    indices = [
+        Index(value = ["userId", "month", "year"], unique = true)
+    ]
+)
 data class BudgetEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val month: Int,                  // 1 - 12
+    val userId: String = "",             // ID of the user who owns this budget
+    val month: Int,                      // 1 - 12
     val year: Int,
-    val amount: Double,              // Total monthly budget limit
+    val amount: Double,                  // Total monthly budget limit
     val categoryBudgetsJson: String = "" // Optional category limits JSON: {"Food":3000.0,"Transport":2000.0}
 )

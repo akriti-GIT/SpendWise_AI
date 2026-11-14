@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,7 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.example.spendwise.data.entity.TransactionEntity
 import com.example.spendwise.model.PaymentMethod
 import com.example.spendwise.model.TransactionType
-import com.example.spendwise.ui.components.CustomKeypad
+import com.example.spendwise.ui.components.*
 import com.example.spendwise.ui.theme.*
 import com.example.spendwise.util.DateUtils
 import com.example.spendwise.viewmodel.SpendWiseViewModel
@@ -35,10 +36,73 @@ import java.util.Calendar
 fun AddTransactionScreen(
     viewModel: SpendWiseViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToScreenshotReview: () -> Unit = {},
     editingTransaction: TransactionEntity? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isOcrProcessing by viewModel.isOcrProcessing.collectAsState()
+    val ocrErrorMessage by viewModel.ocrErrorMessage.collectAsState()
+
+    var showImageSourceSheet by remember { mutableStateOf(false) }
+
+    val permissionsToRequest = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        arrayOf(
+            android.Manifest.permission.READ_MEDIA_IMAGES,
+            android.Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+        )
+    } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(android.Manifest.permission.READ_MEDIA_IMAGES)
+    } else {
+        arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
+    var pendingPickerLaunch by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        pendingPickerLaunch?.invoke()
+        pendingPickerLaunch = null
+    }
+
+    val requestPermissionAndLaunch = { onGrantedLaunch: () -> Unit ->
+        val allGranted = permissionsToRequest.all { perm ->
+            androidx.core.content.ContextCompat.checkSelfPermission(context, perm) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) {
+            onGrantedLaunch()
+        } else {
+            pendingPickerLaunch = onGrantedLaunch
+            permissionLauncher.launch(permissionsToRequest)
+        }
+    }
+
+    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        viewModel.isImagePickerActive = false
+        if (!uris.isNullOrEmpty()) {
+            viewModel.processScreenshots(
+                context = context,
+                imageUris = uris,
+                onParsed = { onNavigateToScreenshotReview() }
+            )
+        }
+    }
+
+    val photoPickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        viewModel.isImagePickerActive = false
+        if (!uris.isNullOrEmpty()) {
+            viewModel.processScreenshots(
+                context = context,
+                imageUris = uris,
+                onParsed = { onNavigateToScreenshotReview() }
+            )
+        }
+    }
     var selectedType by remember { mutableStateOf(editingTransaction?.type ?: TransactionType.EXPENSE) }
     var amountText by remember { mutableStateOf(editingTransaction?.let { String.format("%.2f", it.amount) } ?: "") }
     var selectedCategory by remember { mutableStateOf(editingTransaction?.category ?: "Food") }
@@ -74,9 +138,77 @@ fun AddTransactionScreen(
         }
     }
 
+    val onSaveClick = {
+        val amountVal = amountText.toDoubleOrNull() ?: 0.0
+        if (amountVal <= 0.0) {
+            errorMessage = "Please enter a valid amount greater than ₹0"
+        } else if (selectedCategory.isBlank()) {
+            errorMessage = "Please select a category"
+        } else {
+            if (editingTransaction != null) {
+                viewModel.updateTransaction(
+                    editingTransaction.copy(
+                        type = selectedType,
+                        amount = amountVal,
+                        category = selectedCategory,
+                        description = descriptionText.ifBlank { selectedCategory },
+                        date = selectedDate,
+                        paymentMethod = selectedPaymentMethod
+                    ),
+                    onSuccess = { onNavigateBack() },
+                    onError = { errorMessage = it }
+                )
+            } else {
+                viewModel.addTransaction(
+                    type = selectedType,
+                    amount = amountVal,
+                    category = selectedCategory,
+                    description = descriptionText.ifBlank { selectedCategory },
+                    date = selectedDate,
+                    paymentMethod = selectedPaymentMethod,
+                    onSuccess = { onNavigateBack() },
+                    onError = { errorMessage = it }
+                )
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Button(
+                        onClick = { onSaveClick() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(99.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DarkPine)
+                    ) {
+                        Text(
+                            text = if (selectedType == TransactionType.EXPENSE) "Save expense" else "Save income",
+                            fontFamily = SansFamily,
+                            fontSize = 14.sp,
+                            color = CardLight,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+            }
+        },
         modifier = modifier.fillMaxSize()
     ) { padding ->
         Column(
@@ -161,6 +293,42 @@ fun AddTransactionScreen(
                                 color = if (isSelected) CardLight else TextSecondary
                             )
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Import from Screenshot shortcut button
+            if (editingTransaction == null) {
+                Surface(
+                    onClick = {
+                        if (!isOcrProcessing) {
+                            showImageSourceSheet = true
+                        }
+                    },
+                    shape = RoundedCornerShape(99.dp),
+                    color = PillBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DocumentScanner,
+                            contentDescription = "Scan Screenshot",
+                            tint = DarkPine,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Import from Screenshot",
+                            fontFamily = SansFamily,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = DarkPine
+                        )
                     }
                 }
             }
@@ -321,63 +489,69 @@ fun AddTransactionScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Save Button
-            Button(
-                onClick = {
-                    val amountVal = amountText.toDoubleOrNull() ?: 0.0
-                    if (amountVal <= 0.0) {
-                        errorMessage = "Please enter a valid amount greater than ₹0"
-                        return@Button
-                    }
-                    if (selectedCategory.isBlank()) {
-                        errorMessage = "Please select a category"
-                        return@Button
-                    }
-
-                    if (editingTransaction != null) {
-                        viewModel.updateTransaction(
-                            editingTransaction.copy(
-                                type = selectedType,
-                                amount = amountVal,
-                                category = selectedCategory,
-                                description = descriptionText.ifBlank { selectedCategory },
-                                date = selectedDate,
-                                paymentMethod = selectedPaymentMethod
-                            ),
-                            onSuccess = { onNavigateBack() },
-                            onError = { errorMessage = it }
-                        )
-                    } else {
-                        viewModel.addTransaction(
-                            type = selectedType,
-                            amount = amountVal,
-                            category = selectedCategory,
-                            description = descriptionText.ifBlank { selectedCategory },
-                            date = selectedDate,
-                            paymentMethod = selectedPaymentMethod,
-                            onSuccess = { onNavigateBack() },
-                            onError = { errorMessage = it }
-                        )
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(99.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = DarkPine)
-            ) {
-                Text(
-                    text = if (selectedType == TransactionType.EXPENSE) "Save expense" else "Save income",
-                    fontFamily = SansFamily,
-                    fontSize = 14.sp,
-                    color = CardLight,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.5.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
+
+        // Reading transactions loading dialog
+        if (isOcrProcessing) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { /* Prevent dismiss while processing */ }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(28.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = DarkPine,
+                            modifier = Modifier.size(44.dp),
+                            strokeWidth = 3.5.dp
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Text(
+                            text = "Reading your transactions...",
+                            fontFamily = SansFamily,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Processing on-device with ML Kit OCR",
+                            fontFamily = SansFamily,
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showImageSourceSheet) {
+        ImageSourceBottomSheet(
+            onDismissRequest = { showImageSourceSheet = false },
+            onSelectFiles = {
+                requestPermissionAndLaunch {
+                    viewModel.isImagePickerActive = true
+                    filePickerLauncher.launch(arrayOf("image/*"))
+                }
+            },
+            onSelectGallery = {
+                requestPermissionAndLaunch {
+                    viewModel.isImagePickerActive = true
+                    photoPickerLauncher.launch(
+                        androidx.activity.result.PickVisualMediaRequest(
+                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
+                    )
+                }
+            }
+        )
     }
 }
